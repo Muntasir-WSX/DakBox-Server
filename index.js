@@ -11,7 +11,7 @@ app.use(cors());
 app.use(express.json());
 
 // MongoDB Connection
-const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.mongodb.net/?retryWrites=true&w=majority`;
+const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.mongodb.net/?retryWrites=true&w=majority`;
 
 const client = new MongoClient(uri, {
   serverApi: {
@@ -28,7 +28,7 @@ async function run() {
     
     const parcelCollection = client.db("dakBoxDB").collection("parcels");
 
-    // পার্সেল সেভ করার API
+    // percel save api
     app.post('/parcels', async (req, res) => {
       const parcel = req.body;
       const result = await parcelCollection.insertOne(parcel);

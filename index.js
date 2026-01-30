@@ -47,18 +47,20 @@ async function run() {
       }
     });
 
-    // GET: Fetch parcels by user email
-    app.get('/my-parcels/:email', async (req, res) => {
-      try {
+    // GET: Fetch parcels by user email (Specific Important Fields)
+app.get('/my-parcels/:email', async (req, res) => {
+    try {
         const email = req.params.email;
         const query = { userEmail: email };
+        
+        // স্ক্রিনশটে থাকা সব ইনফো সহ ডেটা নিয়ে আসা হচ্ছে
         const result = await parcelCollection.find(query).toArray();
         res.send(result);
-      } catch (error) {
+    } catch (error) {
         console.error("Fetch Error:", error);
-        res.status(500).send({ message: "Error fetching data" });
-      }
-    });
+        res.status(500).send({ message: "Error fetching user parcels" });
+    }
+});
 
     console.log("Connected to MongoDB successfully!");
   } catch (error) {

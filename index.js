@@ -62,6 +62,9 @@ app.get('/my-parcels/:email', async (req, res) => {
     }
 });
 
+
+
+
     console.log("Connected to MongoDB successfully!");
   } catch (error) {
     console.error("Connection Error Details:", error);

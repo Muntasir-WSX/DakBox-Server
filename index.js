@@ -87,8 +87,14 @@ async function run() {
         .toArray();
       res.send(updates);
     });
-
-    // Pyement Routes API
+    // 2.parcel info getting api
+   app.get('/track-parcel-info/:tracingId', async (req, res) => {
+    const tracingId = req.params.tracingId;
+    const query = { tracingId: tracingId };
+    const result = await parcelCollection.findOne(query);
+    res.send(result);
+});
+    // Payement Routes API
     // 1. Create Payment Intent
     app.post("/create-payment-intent", async (req, res) => {
       try {
@@ -122,6 +128,7 @@ async function run() {
         // (Data structure correct and validation can be added here)
         const paymentRecord = {
           parcelId: id,
+          tracingId: parcel.tracingId,
           transactionId: paymentInfo.transactionId,
           userEmail: parcel.userEmail,
           userName: parcel.userName,

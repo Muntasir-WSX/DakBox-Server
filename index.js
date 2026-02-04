@@ -1,14 +1,24 @@
 const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
+const jwt = require("jsonwebtoken"); // 1. Added JWT import
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const stripe = require("stripe")(process.env.PAYMENT_GATEWAY_KEY);
+const admin = require("firebase-admin");
 const app = express();
 const port = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+
+const serviceAccount = require("./dakbox-firebase-admin-key.json");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
+
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@simple-crud-server.a0arf8b.mongodb.net/?appName=simple-crud-server`;
 
@@ -31,51 +41,82 @@ async function run() {
     const trackingCollection = db.collection("trackingUpdates");
     const usersCollection = db.collection("users");
 
-    //user api
+    // --- JWT API ---
+    // Generate token for authenticated users
+    app.post("/jwt", async (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn: "1h",
+      });
+      res.send({ token });
+    });
 
+    // --- Authentication Middleware ---
+    // Verify if the token provided in headers is valid
+    const verifyToken = (req, res, next) => {
+      if (!req.headers.authorization) {
+        return res.status(401).send({ message: "Unauthorized access" });
+      }
+      const token = req.headers.authorization.split(" ")[1];
+      jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+        if (err) {
+          return res.status(401).send({ message: "Unauthorized access" });
+        }
+        req.decoded = decoded;
+        next();
+      });
+    };
+
+    // --- User API ---
     app.post("/users", async (req, res) => {
-  try {
-    const user = req.body;
-    const email = user.email;
-    
-    // Check if user exists
-    const userExist = await usersCollection.findOne({ email: email });
-    if (userExist) {
-      return res.status(200).send({ message: 'User already exists', inserted: false });
-    }
+      try {
+        const user = req.body;
+        const email = user.email;
 
-    // Insert new user
-    const result = await usersCollection.insertOne(user);
-    res.status(201).send(result); // This will return { insertedId: "..." }
-  } catch (error) {
-    console.error("Database Error:", error);
-    res.status(500).send({ message: "Internal Server Error", error: error.message });
-  }
-  });
+        // Check if user already exists in DB
+        const userExist = await usersCollection.findOne({ email: email });
+        if (userExist) {
+          return res
+            .status(200)
+            .send({ message: "User already exists", inserted: false });
+        }
 
-    // 1. POST: new parcel
-    app.post("/parcels", async (req, res) => {
+        // Insert new user
+        const result = await usersCollection.insertOne(user);
+        res.status(201).send(result);
+      } catch (error) {
+        console.error("Database Error:", error);
+        res.status(500).send({ message: "Internal Server Error", error: error.message });
+      }
+    });
+
+    // --- Parcel Routes ---
+
+    // 1. POST: Create a new parcel (Protected)
+    app.post("/parcels", verifyToken, async (req, res) => {
       try {
         const parcel = req.body;
         const result = await parcelCollection.insertOne(parcel);
         res.status(201).send(result);
       } catch (error) {
-        res
-          .status(500)
-          .send({ message: "Internal Server Error", error: error.message });
+        res.status(500).send({ message: "Internal Server Error", error: error.message });
       }
     });
 
-    // 2. GET: parcel by user email
-    app.get("/my-parcels/:email", async (req, res) => {
+    // 2. GET: Fetch parcels by user email (Protected + Email Verification)
+    app.get("/my-parcels/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
+      // Security: Ensure the requester email matches the token email
+      if (email !== req.decoded.email) {
+        return res.status(403).send({ message: "Forbidden access" });
+      }
       const query = { userEmail: email };
       const result = await parcelCollection.find(query).toArray();
       res.send(result);
     });
 
-    // 3. GET: parcel details by ID
-    app.get("/parcel/:id", async (req, res) => {
+    // 3. GET: Get specific parcel details (Protected)
+    app.get("/parcel/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
       if (!ObjectId.isValid(id))
         return res.status(400).send({ message: "Invalid ID" });
@@ -84,8 +125,8 @@ async function run() {
       res.send(result);
     });
 
-    // 4. DELETE: parcel delete
-    app.delete("/parcels/:id", async (req, res) => {
+    // 4. DELETE: Cancel/Delete a parcel (Protected)
+    app.delete("/parcels/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const parcel = await parcelCollection.findOne(query);
@@ -98,9 +139,8 @@ async function run() {
       res.send(result);
     });
 
-    // Tracking Routes API
+    // --- Tracking Routes (Public Access) ---
 
-    // 1.tracking data getting api
     app.get("/tracking/:tracingId", async (req, res) => {
       const tracingId = req.params.tracingId;
       const query = { tracingId: tracingId };
@@ -110,16 +150,18 @@ async function run() {
         .toArray();
       res.send(updates);
     });
-    // 2.parcel info getting api
-   app.get('/track-parcel-info/:tracingId', async (req, res) => {
-    const tracingId = req.params.tracingId;
-    const query = { tracingId: tracingId };
-    const result = await parcelCollection.findOne(query);
-    res.send(result);
-});
-    // Payement Routes API
-    // 1. Create Payment Intent
-    app.post("/create-payment-intent", async (req, res) => {
+
+    app.get("/track-parcel-info/:tracingId", async (req, res) => {
+      const tracingId = req.params.tracingId;
+      const query = { tracingId: tracingId };
+      const result = await parcelCollection.findOne(query);
+      res.send(result);
+    });
+
+    // --- Payment Routes ---
+
+    // 1. Create Payment Intent (Protected)
+    app.post("/create-payment-intent", verifyToken, async (req, res) => {
       try {
         const { price } = req.body;
         if (!price || price < 1)
@@ -137,8 +179,8 @@ async function run() {
       }
     });
 
-    // 2. Payment Success Update
-    app.patch("/parcel/payment-success/:id", async (req, res) => {
+    // 2. Update status after successful payment (Protected)
+    app.patch("/parcel/payment-success/:id", verifyToken, async (req, res) => {
       try {
         const id = req.params.id;
         const paymentInfo = req.body;
@@ -148,7 +190,6 @@ async function run() {
         if (!parcel)
           return res.status(404).send({ message: "Parcel not found" });
 
-        // (Data structure correct and validation can be added here)
         const paymentRecord = {
           parcelId: id,
           tracingId: parcel.tracingId,
@@ -161,17 +202,15 @@ async function run() {
         };
         const insertResult = await paymentsCollection.insertOne(paymentRecord);
 
-        //2.
         const trackingUpdate = {
           parcelId: id,
-          tracingId: parcel.tracingId, 
+          tracingId: parcel.tracingId,
           status: "Payment Confirmed",
           message: "Parcel is ready for processing.",
           time: new Date(),
         };
         await trackingCollection.insertOne(trackingUpdate);
 
-        // 3. 
         const updatedDoc = {
           $set: {
             status: "paid",
@@ -179,21 +218,16 @@ async function run() {
             paymentDate: new Date(),
           },
         };
-        const updateResult = await parcelCollection.updateOne(
-          filter,
-          updatedDoc,
-        );
+        const updateResult = await parcelCollection.updateOne(filter, updatedDoc);
 
         res.send({ success: true, updateResult, insertResult });
       } catch (error) {
-        res
-          .status(500)
-          .send({ message: "Database update failed", error: error.message });
+        res.status(500).send({ message: "Database update failed", error: error.message });
       }
     });
 
-    // 3. GET: Payment History
-    app.get("/payment-history", async (req, res) => {
+    // 3. GET: Payment History (Protected)
+    app.get("/payment-history", verifyToken, async (req, res) => {
       try {
         const email = req.query.email;
         let query = {};
@@ -209,6 +243,7 @@ async function run() {
         res.status(500).send({ message: "Error fetching history" });
       }
     });
+
   } finally {
     // Keep connection open
   }

@@ -29,6 +29,29 @@ async function run() {
     const parcelCollection = db.collection("parcels");
     const paymentsCollection = db.collection("payments");
     const trackingCollection = db.collection("trackingUpdates");
+    const usersCollection = db.collection("users");
+
+    //user api
+
+    app.post("/users", async (req, res) => {
+  try {
+    const user = req.body;
+    const email = user.email;
+    
+    // Check if user exists
+    const userExist = await usersCollection.findOne({ email: email });
+    if (userExist) {
+      return res.status(200).send({ message: 'User already exists', inserted: false });
+    }
+
+    // Insert new user
+    const result = await usersCollection.insertOne(user);
+    res.status(201).send(result); // This will return { insertedId: "..." }
+  } catch (error) {
+    console.error("Database Error:", error);
+    res.status(500).send({ message: "Internal Server Error", error: error.message });
+  }
+  });
 
     // 1. POST: new parcel
     app.post("/parcels", async (req, res) => {

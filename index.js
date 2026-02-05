@@ -148,6 +148,18 @@ async function run() {
       res.send(result);
     });
 
+
+    // 5. PATCH: Disapprove an active rider (Move back to pending)
+app.patch("/rider-applications/disapprove/:id", verifyToken, async (req, res) => {
+    const id = req.params.id;
+    const filter = { _id: new ObjectId(id) };
+    const updatedDoc = {
+        $set: { status: "pending" },
+    };
+    const result = await riderApplicationCollection.updateOne(filter, updatedDoc);
+    res.send(result);
+});
+
     // --- Parcel Routes ---
 
     // 1. POST: Create a new parcel (Protected)

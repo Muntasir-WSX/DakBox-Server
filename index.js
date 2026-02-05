@@ -1,7 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
-const jwt = require("jsonwebtoken"); // 1. Added JWT import
+const jwt = require("jsonwebtoken");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const stripe = require("stripe")(process.env.PAYMENT_GATEWAY_KEY);
 const admin = require("firebase-admin");
@@ -12,13 +12,11 @@ const port = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-
 const serviceAccount = require("./dakbox-firebase-admin-key.json");
 
 admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
+  credential: admin.credential.cert(serviceAccount),
 });
-
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@simple-crud-server.a0arf8b.mongodb.net/?appName=simple-crud-server`;
 
@@ -87,40 +85,68 @@ async function run() {
         res.status(201).send(result);
       } catch (error) {
         console.error("Database Error:", error);
-        res.status(500).send({ message: "Internal Server Error", error: error.message });
+        res
+          .status(500)
+          .send({ message: "Internal Server Error", error: error.message });
       }
     });
 
-
-// 1. POST: Rider application submit API (Protected)
-app.post("/rider-applications", verifyToken, async (req, res) => {
-    try {
+    // 1. POST: Rider application submit API (Protected)
+    app.post("/rider-applications", verifyToken, async (req, res) => {
+      try {
         const application = req.body;
         const email = application.email;
 
-        // চেক করা হচ্ছে ইউজার কি অলরেডি আবেদন করেছে কি না
-        const alreadyApplied = await riderApplicationCollection.findOne({ email: email });
+        // Check if the user has already applied
+        const alreadyApplied = await riderApplicationCollection.findOne({
+          email: email,
+        });
         if (alreadyApplied) {
-            return res.status(400).send({ 
-                message: "You have already submitted an application!" 
-            });
+          return res.status(400).send({
+            message: "You have already submitted an application!",
+          });
         }
 
         const result = await riderApplicationCollection.insertOne(application);
         res.status(201).send(result);
-    } catch (error) {
-        res.status(500).send({ message: "Internal Server Error", error: error.message });
-    }
-});
+      } catch (error) {
+        res
+          .status(500)
+          .send({ message: "Internal Server Error", error: error.message });
+      }
+    });
 
-// 2. GET: Get all rider applications (Protected)
-app.get("/rider-applications", verifyToken, async (req, res) => {
-    
-    const result = await riderApplicationCollection.find().toArray();
-    res.send(result);
-});
+    // 2. GET: Get all rider applications (Protected)
+    app.get("/rider-applications", verifyToken, async (req, res) => {
+      const result = await riderApplicationCollection.find().toArray();
+      res.send(result);
+    });
 
+    // 3. PATCH: Approve a rider (Change status to 'active')
+    app.patch(
+      "/rider-applications/approve/:id",
+      verifyToken,
+      async (req, res) => {
+        const id = req.params.id;
+        const filter = { _id: new ObjectId(id) };
+        const updatedDoc = {
+          $set: { status: "active" },
+        };
+        const result = await riderApplicationCollection.updateOne(
+          filter,
+          updatedDoc,
+        );
+        res.send(result);
+      },
+    );
 
+    // 4. DELETE: Reject/Delete a rider application
+    app.delete("/rider-applications/:id", verifyToken, async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await riderApplicationCollection.deleteOne(query);
+      res.send(result);
+    });
 
     // --- Parcel Routes ---
 
@@ -131,7 +157,9 @@ app.get("/rider-applications", verifyToken, async (req, res) => {
         const result = await parcelCollection.insertOne(parcel);
         res.status(201).send(result);
       } catch (error) {
-        res.status(500).send({ message: "Internal Server Error", error: error.message });
+        res
+          .status(500)
+          .send({ message: "Internal Server Error", error: error.message });
       }
     });
 
@@ -250,11 +278,16 @@ app.get("/rider-applications", verifyToken, async (req, res) => {
             paymentDate: new Date(),
           },
         };
-        const updateResult = await parcelCollection.updateOne(filter, updatedDoc);
+        const updateResult = await parcelCollection.updateOne(
+          filter,
+          updatedDoc,
+        );
 
         res.send({ success: true, updateResult, insertResult });
       } catch (error) {
-        res.status(500).send({ message: "Database update failed", error: error.message });
+        res
+          .status(500)
+          .send({ message: "Database update failed", error: error.message });
       }
     });
 
@@ -275,7 +308,6 @@ app.get("/rider-applications", verifyToken, async (req, res) => {
         res.status(500).send({ message: "Error fetching history" });
       }
     });
-
   } finally {
     // Keep connection open
   }

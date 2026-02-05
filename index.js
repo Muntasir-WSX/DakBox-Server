@@ -40,6 +40,7 @@ async function run() {
     const paymentsCollection = db.collection("payments");
     const trackingCollection = db.collection("trackingUpdates");
     const usersCollection = db.collection("users");
+    const riderApplicationCollection = db.collection("riderApplications");
 
     // --- JWT API ---
     // Generate token for authenticated users
@@ -89,6 +90,37 @@ async function run() {
         res.status(500).send({ message: "Internal Server Error", error: error.message });
       }
     });
+
+
+// 1. POST: Rider application submit API (Protected)
+app.post("/rider-applications", verifyToken, async (req, res) => {
+    try {
+        const application = req.body;
+        const email = application.email;
+
+        // চেক করা হচ্ছে ইউজার কি অলরেডি আবেদন করেছে কি না
+        const alreadyApplied = await riderApplicationCollection.findOne({ email: email });
+        if (alreadyApplied) {
+            return res.status(400).send({ 
+                message: "You have already submitted an application!" 
+            });
+        }
+
+        const result = await riderApplicationCollection.insertOne(application);
+        res.status(201).send(result);
+    } catch (error) {
+        res.status(500).send({ message: "Internal Server Error", error: error.message });
+    }
+});
+
+// 2. GET: Get all rider applications (Protected)
+app.get("/rider-applications", verifyToken, async (req, res) => {
+    
+    const result = await riderApplicationCollection.find().toArray();
+    res.send(result);
+});
+
+
 
     // --- Parcel Routes ---
 

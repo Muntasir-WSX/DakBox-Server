@@ -512,6 +512,29 @@ app.get("/users/riders-list", verifyToken, verifyAdmin, async (req, res) => {
 });
 
 
+// riders-delivery get api
+
+app.get('/rider/my-deliveries/:email', verifyToken,verifyRider, async (req, res) => {
+  const email = req.params.email;
+
+  if (req.decoded.email !== email) {
+    return res.status(403).send({ message: "Forbidden Access" });
+  }
+  const query = { riderEmail: email };
+  const result = await parcelCollection.find(query).toArray();
+  res.send(result);
+});
+
+app.patch('/parcel/update-status/:id', async (req, res) => {
+  const id = req.params.id;
+  const { status } = req.body;
+  const filter = { _id: new ObjectId(id) };
+  const updateDoc = { $set: { status: status } };
+  const result = await parcelCollection.updateOne(filter, updateDoc);
+  res.send(result);
+});
+
+
   } finally {
     // Keeping connection open
   }

@@ -183,7 +183,7 @@ const verifyAdmin = async (req, res, next) => {
             }
         });
 
-        app.patch("/rider-applications/toggle-status/:id", verifyToken,  async (req, res) => {
+        app.patch("/rider-applications/toggle-status/:id", verifyToken, verifyAdmin,  async (req, res) => {
             try {
                 const id = req.params.id;
                 const { currentStatus } = req.body;
@@ -231,7 +231,7 @@ const verifyAdmin = async (req, res, next) => {
         app.get("/parcel/:id", verifyToken, async (req, res) => {
             const id = req.params.id;
             if (!ObjectId.isValid(id)) return res.status(400).send({ message: "Invalid ID" });
-            const result = await parcelCollection.findOne({ _id: new ObjectId(id) });
+            const result = await parcelCollection.findOne({ _id: new ObjectId(id),userEmail: req.decoded.email });
             res.send(result);
         });
 
@@ -311,7 +311,7 @@ const verifyAdmin = async (req, res, next) => {
         });
 
         // --- Tracking APIs ---
-        app.get("/track-parcel-info/:id", async (req, res) => {
+        app.get("/track-parcel-info/:id", verifyToken, async (req, res) => {
             try {
                 const tracingId = req.params.id;
                 const result = await parcelCollection.findOne({ tracingId: tracingId });

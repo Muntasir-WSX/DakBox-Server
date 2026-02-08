@@ -55,23 +55,18 @@ async function run() {
         };
 
         // Middlewares (Fixed Logic)
-      const verifyAdmin = async (req, res, next) => {
-    const email = req.decoded?.email;
-    console.log("Attempting to verify admin for:", email); // এটি চেক করুন
     
-    if (!email) {
-        return res.status(401).send({ message: "Unauthorized: No email in token" });
-    }
-
-    const query = { email: email };
+const verifyAdmin = async (req, res, next) => {
+    const email = req.decoded.email;
+    const query = { email: { $regex: new RegExp(`^${email}$`, 'i') } }; // Case insensitive check
     const user = await usersCollection.findOne(query);
-    
-    if (user?.role !== "admin") {
-        console.log("Access denied for:", email, "Role found:", user?.role);
-        return res.status(403).send({ message: "Forbidden access! Admins only." });
+    const isAdmin = user?.role === 'admin';
+    if (!isAdmin) {
+        return res.status(403).send({ message: 'forbidden access' });
     }
     next();
 };
+
 
         // --- JWT API ---
         app.post("/jwt", async (req, res) => {
@@ -97,6 +92,17 @@ async function run() {
                 res.status(500).send({ message: "Internal Server Error", error: error.message });
             }
         });
+
+
+        app.get("/user-role", verifyToken, async (req, res) => {
+    const email = req.query.email;
+    if (req.decoded.email !== email) {
+        return res.status(403).send({ message: 'Forbidden access' });
+    }
+    const query = { email: { $regex: new RegExp(`^${email}$`, 'i') } };
+    const user = await usersCollection.findOne(query);
+    res.send({ role: user?.role || 'user' });
+    });
 
         // --- Admin APIs (Place these carefully) ---
         app.get("/users/admin-list", verifyToken, verifyAdmin, async (req, res) => {
@@ -127,7 +133,7 @@ async function run() {
         });
 
         // --- Rider Application Routes ---
-        app.post("/rider-applications", verifyToken, async (req, res) => {
+        app.post("/rider-applications", verifyToken,  async (req, res) => {
             try {
                 const application = req.body;
                 const query = { email: application.email };
@@ -142,12 +148,12 @@ async function run() {
             }
         });
 
-        app.get("/rider-applications", verifyToken, async (req, res) => {
+        app.get("/rider-applications", verifyToken, verifyAdmin, async (req, res) => {
             const result = await riderApplicationCollection.find().toArray();
             res.send(result);
         });
 
-        app.patch("/rider-applications/approve/:id", verifyToken, async (req, res) => {
+        app.patch("/rider-applications/approve/:id", verifyToken, verifyAdmin, async (req, res) => {
             try {
                 const id = req.params.id;
                 const query = { _id: new ObjectId(id) };
@@ -177,7 +183,7 @@ async function run() {
             }
         });
 
-        app.patch("/rider-applications/toggle-status/:id", verifyToken, async (req, res) => {
+        app.patch("/rider-applications/toggle-status/:id", verifyToken,  async (req, res) => {
             try {
                 const id = req.params.id;
                 const { currentStatus } = req.body;

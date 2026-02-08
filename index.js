@@ -38,7 +38,7 @@ async function run() {
     const trackingCollection = db.collection("trackingUpdates");
     const usersCollection = db.collection("users");
     const riderApplicationCollection = db.collection("riderApplications");
-
+    const rivewCollection = db.collection("revies");
     // --- Authentication Middlewares ---
     const verifyToken = (req, res, next) => {
       if (!req.headers.authorization) {
@@ -532,6 +532,46 @@ app.patch('/parcel/update-status/:id', async (req, res) => {
   const updateDoc = { $set: { status: status } };
   const result = await parcelCollection.updateOne(filter, updateDoc);
   res.send(result);
+});
+
+// rivew api
+
+// 1. user's review save ap[i]
+app.post("/reviews", verifyToken, async (req, res) => {
+    try {
+        const review = req.body;
+        const result = await rivewCollection.insertOne(review);
+        res.send(result);
+    } catch (error) {
+        res.status(500).send({ message: "Review failed to save" });
+    }
+});
+
+// 2. rider can see own review (Rider's Review API)
+app.get("/rider-reviews/:email", verifyToken, async (req, res) => {
+    const email = req.params.email;
+    if (req.decoded.email !== email && req.decoded.role !== 'admin') {
+        return res.status(403).send({ message: "Forbidden Access" });
+    }
+
+    const result = await rivewCollection
+        .find({ riderEmail: email })
+        .sort({ date: -1 })
+        .toArray();
+    res.send(result);
+});
+
+// 3. avg rating of rider
+app.get("/rider-stats/:email", async (req, res) => {
+    const email = req.params.email;
+    const reviews = await rivewCollection.find({ riderEmail: email }).toArray();
+    const totalReviews = reviews.length;
+    
+    const avgRating = totalReviews > 0 
+        ? (reviews.reduce((acc, curr) => acc + (parseFloat(curr.rating) || 0), 0) / totalReviews).toFixed(1) 
+        : 0;
+    
+    res.send({ avgRating, totalReviews });
 });
 
 

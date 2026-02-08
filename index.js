@@ -549,16 +549,25 @@ app.post("/reviews", verifyToken, async (req, res) => {
 
 // 2. rider can see own review (Rider's Review API)
 app.get("/rider-reviews/:email", verifyToken, async (req, res) => {
-    const email = req.params.email;
-    if (req.decoded.email !== email && req.decoded.role !== 'admin') {
-        return res.status(403).send({ message: "Forbidden Access" });
-    }
+    try {
+        const email = req.params.email; 
+        const decodedEmail = req.decoded.email; 
+        const requester = await usersCollection.findOne({ email: decodedEmail });
+        const isAdmin = requester?.role === 'admin';
+        if (decodedEmail !== email && !isAdmin) {
+            return res.status(403).send({ message: "Forbidden Access: Access Denied!" });
+        }
 
-    const result = await rivewCollection
-        .find({ riderEmail: email })
-        .sort({ date: -1 })
-        .toArray();
-    res.send(result);
+        const result = await rivewCollection
+            .find({ riderEmail: email })
+            .sort({ date: -1 })
+            .toArray();
+            
+        res.send(result);
+    } catch (error) {
+        console.error("Review Fetch Error:", error);
+        res.status(500).send({ message: "Error fetching reviews" });
+    }
 });
 
 // 3. avg rating of rider

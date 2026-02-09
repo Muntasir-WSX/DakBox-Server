@@ -38,7 +38,7 @@ async function run() {
     const trackingCollection = db.collection("trackingUpdates");
     const usersCollection = db.collection("users");
     const riderApplicationCollection = db.collection("riderApplications");
-    const rivewCollection = db.collection("revies");
+    const rivewCollection = db.collection("reviews");
     // --- Authentication Middlewares ---
     const verifyToken = (req, res, next) => {
       if (!req.headers.authorization) {
@@ -485,30 +485,47 @@ async function run() {
         const { status, message } = req.body;
         const filter = { _id: new ObjectId(id) };
 
-        // 1. Update the main parcel status
-        const result = await parcelCollection.updateOne(filter, {
-          $set: { status: status },
-        });
+        try {
+      
+      const parcel = await parcelCollection.findOne(filter);
+      if (!parcel) return res.status(404).send({ message: "Parcel not found" });
 
-        if (result.modifiedCount > 0) {
-          // 2. Fetch tracingId from the updated parcel
-          const parcel = await parcelCollection.findOne(filter);
+      let updateDoc = { $set: { status: status } };
+      if (status === 'delivered') {
+        const isOutRange = parcel.senderDistrict !== parcel.receiverDistrict;
+        const commissionRate = isOutRange ? 0.20 : 0.12; 
+        const riderEarnings = parcel.totalCharge * commissionRate;
+        const adminEarnings = parcel.totalCharge - riderEarnings;
 
-          // 3. Create a tracking log for the user to see in history
-          const trackingLog = {
-            tracingId: parcel.tracingId,
-            status: status,
-            message: message || `Parcel is now ${status}`,
-            time: new Date(),
-          };
-          await trackingCollection.insertOne(trackingLog);
+        updateDoc.$set = {
+          ...updateDoc.$set,
+          deliveredDate: new Date().toISOString(),
+          riderCommission: riderEarnings,
+          adminCommission: adminEarnings,
+          isCashedOut: false 
+        };
+      }
+      const result = await parcelCollection.updateOne(filter, updateDoc);
 
-          res.send({ success: true, message: "Status updated successfully" });
-        } else {
-          res.status(500).send({ success: false, message: "Failed to update" });
-        }
-      },
-    );
+      if (result.modifiedCount > 0) {
+        const trackingLog = {
+          tracingId: parcel.tracingId,
+          status: status,
+          message: message || `Parcel is now ${status}`,
+          time: new Date(),
+        };
+        await trackingCollection.insertOne(trackingLog);
+
+        res.send({ success: true, message: `Status updated to ${status} and earnings calculated!` });
+      } else {
+        res.status(500).send({ success: false, message: "Failed to update status" });
+      }
+    } catch (error) {
+      console.error(error);
+      res.status(500).send({ message: "Internal Server Error" });
+    }
+  }
+);
 // with pagination,get all aprcels
 app.get("/admin/all-parcels", verifyToken, verifyAdmin, async (req, res) => {
     const page = parseInt(req.query.page) || 1;
@@ -553,6 +570,9 @@ app.patch('/parcel/update-status/:id', async (req, res) => {
   const result = await parcelCollection.updateOne(filter, updateDoc);
   res.send(result);
 });
+
+
+
 
 // rivew api
 

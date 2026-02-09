@@ -39,6 +39,7 @@ async function run() {
     const usersCollection = db.collection("users");
     const riderApplicationCollection = db.collection("riderApplications");
     const rivewCollection = db.collection("reviews");
+    const riderCashCollection = db.collection("cashouts")
     // --- Authentication Middlewares ---
     const verifyToken = (req, res, next) => {
       if (!req.headers.authorization) {
@@ -572,6 +573,68 @@ app.patch('/parcel/update-status/:id', async (req, res) => {
 });
 
 
+// --- Cashout-Riders API ---
+
+// 1.cashout save
+app.post("/cashout-requests", verifyToken, verifyRider, async (req, res) => {
+    const request = req.body;
+    if (request.amount < 500) {
+        return res.status(400).send({ message: "Minimum 500 BDT required" });
+    }
+    
+    const result = await riderCashCollection.insertOne({
+        ...request,
+        status: "pending",
+        requestDate: new Date()
+    });
+    res.send(result);
+});
+
+// 2.fixed rider's cashout history
+app.get("/my-cashouts/:email", verifyToken, verifyRider, async (req, res) => {
+    const email = req.params.email;
+    const result = await riderCashCollection
+        .find({ riderEmail: email })
+        .sort({ requestDate: -1 })
+        .toArray();
+    res.send(result);
+});
+
+// --- Admin Cashout Management ---
+
+// 1.Admin will see every req
+app.get("/admin/cashout-requests", verifyToken, verifyAdmin, async (req, res) => {
+    const result = await riderCashCollection
+        .find()
+        .sort({ requestDate: -1 })
+        .toArray();
+    res.send(result);
+});
+
+// 2.Admin approve req
+app.patch("/admin/approve-cashout/:id", verifyToken, verifyAdmin, async (req, res) => {
+    const id = req.params.id;
+    const filter = { _id: new ObjectId(id) };
+    
+    const cashoutReq = await riderCashCollection.findOne(filter);
+    if (!cashoutReq) return res.status(404).send({ message: "Request not found" });
+
+    const updateResult = await riderCashCollection.updateOne(filter, {
+        $set: { status: "success", approvedDate: new Date() }
+    });
+
+    if (updateResult.modifiedCount > 0) {
+        // এখানে parcelCollection ব্যবহার করুন যা আপনি আগে ডিফাইন করেছেন
+        await parcelCollection.updateMany(
+            { riderEmail: cashoutReq.riderEmail, status: "delivered", isCashedOut: false },
+            { $set: { isCashedOut: true } }
+        );
+        res.send({ success: true, message: "Cashout approved successfully" });
+    } else {
+        res.status(500).send({ message: "Failed to approve" });
+    }
+});
+
 
 
 // rivew api
@@ -622,7 +685,6 @@ app.get("/rider-stats/:email", async (req, res) => {
     
     res.send({ avgRating, totalReviews });
 });
-
 
   } finally {
     // Keeping connection open

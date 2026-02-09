@@ -171,14 +171,30 @@ async function run() {
     });
 
     app.get(
-      "/rider-applications",
-      verifyToken,
-      verifyAdmin,
-      async (req, res) => {
-        const result = await riderApplicationCollection.find().toArray();
-        res.send(result);
-      },
-    );
+    "/rider-applications",
+    verifyToken,
+    verifyAdmin,
+    async (req, res) => {
+        try {
+            const page = parseInt(req.query.page) || 1;
+            const limit = parseInt(req.query.limit) || 10;
+            const skip = (page - 1) * limit;
+            const query = { status: { $ne: 'pending' } };
+
+            const totalCount = await riderApplicationCollection.countDocuments(query);
+            const result = await riderApplicationCollection
+                .find(query)
+                .skip(skip)
+                .limit(limit)
+                .toArray();
+
+            res.send({ result, totalCount });
+        } catch (error) {
+            console.error("Fetch Riders Error:", error);
+            res.status(500).send({ message: "Error fetching riders" });
+        }
+    }
+);
 
     app.patch(
       "/rider-applications/approve/:id",

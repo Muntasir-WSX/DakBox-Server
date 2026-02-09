@@ -108,14 +108,18 @@ async function run() {
     });
 
     app.get("/user-role", verifyToken, async (req, res) => {
-      const email = req.query.email;
-      if (req.decoded.email !== email) {
-        return res.status(403).send({ message: "Forbidden access" });
-      }
-      const query = { email: { $regex: new RegExp(`^${email}$`, "i") } };
-      const user = await usersCollection.findOne(query);
-      res.send({ role: user?.role || "user" });
-    });
+  const emailFromQuery = req.query.email?.toLowerCase(); 
+  const emailFromToken = req.decoded.email?.toLowerCase(); 
+
+  if (emailFromToken !== emailFromQuery) {
+    console.log("Mismatch:", emailFromToken, "vs", emailFromQuery); 
+    return res.status(403).send({ message: "Forbidden access" });
+  }
+  const query = { email: { $regex: new RegExp(`^${emailFromQuery}$`, "i") } };
+  const user = await usersCollection.findOne(query);
+  
+  res.send({ role: user?.role || "user" });
+});
 
     // --- Admin APIs (Place these carefully) ---
     app.get("/users/admin-list", verifyToken, verifyAdmin, async (req, res) => {

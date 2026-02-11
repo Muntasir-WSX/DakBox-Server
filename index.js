@@ -12,8 +12,11 @@ const port = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
+const decodedKey = Buffer.from(process.env.FB_SERVICE_KEY, 'base64').toString('utf8');
+
 // Firebase Admin Setup
-const serviceAccount = require("./dakbox-firebase-admin-key.json");
+const serviceAccount = JSON.parse(decodedKey);
+
 if (!admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
@@ -69,15 +72,20 @@ async function run() {
     };
 
     const verifyRider = async (req, res, next) => {
-      const email = req.decoded.email;
-      const user = await usersCollection.findOne({ email: email });
-      if (user?.role !== "rider") {
+    const email = req.decoded.email;
+    
+    // Case insensitive regex check
+    const query = { email: { $regex: new RegExp(`^${email}$`, "i") } };
+    
+    const user = await usersCollection.findOne(query);
+
+    if (user?.role !== "rider") {
         return res
-          .status(403)
-          .send({ message: "Forbidden: Only riders can update status" });
-      }
-      next();
-    };
+            .status(403)
+            .send({ message: "Forbidden: Only riders can update status" });
+    }
+    next();
+};
 
     // --- JWT API ---
     app.post("/jwt", async (req, res) => {
@@ -821,3 +829,4 @@ run().catch(console.dir);
 
 app.get("/", (req, res) => res.send("DakBox Server is running..."));
 app.listen(port, () => console.log(`Server running on port: ${port}`));
+//comment following commandsawait client.db("admin").command({ ping: 1 });

@@ -12,14 +12,14 @@ app.use(cors({
     origin: [
         "http://localhost:5173", 
         "https://dakbox-1f519.firebaseapp.com",
-        "https://dakbox-1f519.web.app" 
+        "https://dakbox-1f519.web.app"
     ],
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     credentials: true
 }));
 
-
 app.options('*', cors());
+
 
 app.use(express.json());
 

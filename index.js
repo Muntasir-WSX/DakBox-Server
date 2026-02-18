@@ -9,7 +9,14 @@ const app = express();
 const port = process.env.PORT || 5000;
 
 // Middleware
-app.use(cors());
+app.use(cors({origin: [
+    "http://localhost:5173", 
+    "https://dak-box.web.app",
+    "https://dak-box.firebaseapp.com"
+  ],
+  credentials: true
+}));
+
 app.use(express.json());
 
 const decodedKey = Buffer.from(process.env.FB_SERVICE_KEY, 'base64').toString('utf8');
@@ -43,20 +50,25 @@ async function run() {
     const riderApplicationCollection = db.collection("riderApplications");
     const rivewCollection = db.collection("reviews");
     const riderCashCollection = db.collection("cashouts");
+
+
     // --- Authentication Middlewares ---
     const verifyToken = (req, res, next) => {
-      if (!req.headers.authorization) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+        console.log("No Header Found"); 
         return res.status(401).send({ message: "Unauthorized access" });
-      }
-      const token = req.headers.authorization.split(" ")[1];
-      jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+    }
+    const token = authHeader.split(" ")[1];
+    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
         if (err) {
-          return res.status(401).send({ message: "Unauthorized access" });
+            console.log("JWT Verify Error:", err.message); 
+            return res.status(401).send({ message: "Unauthorized access" });
         }
         req.decoded = decoded;
         next();
-      });
-    };
+    });
+};
 
     // Middlewares
 
@@ -836,4 +848,5 @@ run().catch(console.dir);
 
 app.get("/", (req, res) => res.send("DakBox Server is running..."));
 app.listen(port, () => console.log(`Server running on port: ${port}`));
+module.exports = app; 
 //comment following commandsawait client.db("admin").command({ ping: 1 });

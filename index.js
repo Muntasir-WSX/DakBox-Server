@@ -8,14 +8,18 @@ const admin = require("firebase-admin");
 const app = express();
 const port = process.env.PORT || 5000;
 
-// Middleware
-app.use(cors({origin: [
-    "http://localhost:5173", 
-    "https://dakbox-1f519.firebaseapp.com",
-    "https://dakbox-1f519.web.app/"
-  ],
-  credentials: true
+app.use(cors({
+    origin: [
+        "http://localhost:5173", 
+        "https://dakbox-1f519.firebaseapp.com",
+        "https://dakbox-1f519.web.app" 
+    ],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    credentials: true
 }));
+
+
+app.options('*', cors());
 
 app.use(express.json());
 

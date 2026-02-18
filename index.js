@@ -14,11 +14,10 @@ app.use(cors({
         "https://dakbox-1f519.firebaseapp.com",
         "https://dakbox-1f519.web.app"
     ],
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     credentials: true
 }));
 
-app.options('*', cors());
+app.use(cors());
 
 
 app.use(express.json());
@@ -26,12 +25,19 @@ app.use(express.json());
 const decodedKey = Buffer.from(process.env.FB_SERVICE_KEY, 'base64').toString('utf8');
 
 // Firebase Admin Setup
-const serviceAccount = JSON.parse(decodedKey);
+try {
+  if (process.env.FB_SERVICE_KEY) {
+    const decodedKey = Buffer.from(process.env.FB_SERVICE_KEY, 'base64').toString('utf8');
+    const serviceAccount = JSON.parse(decodedKey);
 
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
+    if (!admin.apps.length) {
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+      });
+    }
+  }
+} catch (error) {
+  console.error("Firebase Admin Error:", error.message);
 }
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@simple-crud-server.a0arf8b.mongodb.net/?appName=simple-crud-server`;

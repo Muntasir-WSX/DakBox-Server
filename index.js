@@ -89,12 +89,18 @@ async function run() {
 
     // --- JWT API ---
     app.post("/jwt", async (req, res) => {
-      const user = req.body;
-      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+    const user = req.body;
+    const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
         expiresIn: "90d",
-      });
-      res.send({ token });
     });
+
+   
+    const query = { email: { $regex: new RegExp(`^${user.email}$`, "i") } };
+    const dbUser = await usersCollection.findOne(query);
+
+  
+    res.send({ token, role: dbUser?.role || "user" });
+});
 
     // --- User APIs ---
     app.post("/users", async (req, res) => {
@@ -117,20 +123,21 @@ async function run() {
     });
 
     app.get("/user-role", verifyToken, async (req, res) => {
-      const emailFromQuery = req.query.email?.toLowerCase();
-      const emailFromToken = req.decoded.email?.toLowerCase();
+    try {
+        const emailFromQuery = req.query.email?.toLowerCase().trim();
+        const emailFromToken = req.decoded.email?.toLowerCase().trim();
 
-      if (emailFromToken !== emailFromQuery) {
-        console.log("Mismatch:", emailFromToken, "vs", emailFromQuery);
-        return res.status(403).send({ message: "Forbidden access" });
-      }
-      const query = {
-        email: { $regex: new RegExp(`^${emailFromQuery}$`, "i") },
-      };
-      const user = await usersCollection.findOne(query);
+        if (emailFromToken !== emailFromQuery) {
+            return res.status(403).send({ message: "Forbidden access" });
+        }
 
-      res.send({ role: user?.role || "user" });
-    });
+        const query = { email: { $regex: new RegExp(`^${emailFromQuery}$`, "i") } };
+        const user = await usersCollection.findOne(query);
+        res.send({ role: user?.role || "user" });
+    } catch (err) {
+        res.status(500).send({ message: "Server error" });
+    }
+});
 
     //  Admin APIs
     app.get("/users/admin-list", verifyToken, verifyAdmin, async (req, res) => {

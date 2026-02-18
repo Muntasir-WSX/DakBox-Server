@@ -12,7 +12,8 @@ const port = process.env.PORT || 5000;
 app.use(cors({origin: [
     "http://localhost:5173", 
     "https://dak-box.web.app",
-    "https://dak-box.firebaseapp.com"
+    "https://dak-box.firebaseapp.com",
+    "https://dakbox-1f519.web.app/"
   ],
   credentials: true
 }));
